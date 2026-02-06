@@ -9,14 +9,22 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 
-// Routes
-app.use('/api/transactions', require('./routes/transactions'))
-app.use('/api/categories', require('./routes/categories'))
+// Health check endpoints - MUST be before routes for Railway health checks
+// Root route for Railway health check - responds immediately
+app.get('/', (req, res) => {
+  const mongoStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+  res.status(200).json({ 
+    status: 'OK', 
+    message: 'Money Manager API is running',
+    mongodb: mongoStatus,
+    timestamp: new Date().toISOString()
+  })
+})
 
-// Health check with MongoDB status
+// Health check endpoint
 app.get('/api/health', (req, res) => {
   const mongoStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
-  res.json({ 
+  res.status(200).json({ 
     status: 'OK', 
     message: 'Server is running',
     mongodb: mongoStatus,
@@ -24,16 +32,9 @@ app.get('/api/health', (req, res) => {
   })
 })
 
-// Root route for Railway health check
-app.get('/', (req, res) => {
-  const mongoStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
-  res.json({ 
-    status: 'OK', 
-    message: 'Money Manager API is running',
-    mongodb: mongoStatus,
-    timestamp: new Date().toISOString()
-  })
-})
+// Routes
+app.use('/api/transactions', require('./routes/transactions'))
+app.use('/api/categories', require('./routes/categories'))
 
 // Connect to MongoDB
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/money-manager'
