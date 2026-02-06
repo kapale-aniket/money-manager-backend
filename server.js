@@ -48,24 +48,52 @@ if (MONGODB_URI && MONGODB_URI.includes('mongodb+srv://')) {
 // Start server regardless of MongoDB connection status
 const PORT = process.env.PORT || 5000
 
-// MongoDB connection options
+// MongoDB connection options with retry logic
 const mongooseOptions = {
-  serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
-  socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
+  serverSelectionTimeoutMS: 10000, // Increased timeout
+  socketTimeoutMS: 45000,
+  connectTimeoutMS: 10000,
+  retryWrites: true,
+  w: 'majority',
+  maxPoolSize: 10,
 }
 
-// Connect to MongoDB (non-blocking)
+// Connect to MongoDB with retry logic
 if (MONGODB_URI && !MONGODB_URI.includes('localhost')) {
-  mongoose.connect(MONGODB_URI, mongooseOptions)
-    .then(() => {
-      console.log('✓ Connected to MongoDB Atlas')
-    })
-    .catch((error) => {
-      console.error('✗ MongoDB connection error:', error.message)
-      console.error('  Connection string format:', MONGODB_URI.includes('mongodb+srv://') ? 'Correct (Atlas)' : 'Incorrect')
-      console.log('Server will continue without MongoDB connection')
-      console.log('Please check MONGODB_URI environment variable in Railway')
-    })
+  const connectWithRetry = () => {
+    mongoose.connect(MONGODB_URI, mongooseOptions)
+      .then(() => {
+        console.log('✓ Connected to MongoDB Atlas successfully')
+        console.log(`  Database: ${mongoose.connection.db?.databaseName || 'money-manager'}`)
+      })
+      .catch((error) => {
+        console.error('✗ MongoDB connection error:', error.message)
+        if (error.message.includes('IP') || error.message.includes('whitelist')) {
+          console.error('  ⚠ IP Whitelist Issue Detected:')
+          console.error('    1. Verify 0.0.0.0/0 is whitelisted in MongoDB Atlas')
+          console.error('    2. Wait 2-3 minutes for changes to propagate')
+          console.error('    3. Connection will retry automatically')
+        }
+        console.log('  Retrying connection in 5 seconds...')
+        setTimeout(connectWithRetry, 5000)
+      })
+  }
+  
+  // Start connection attempt
+  connectWithRetry()
+  
+  // Handle connection events
+  mongoose.connection.on('error', (err) => {
+    console.error('MongoDB connection error:', err.message)
+  })
+  
+  mongoose.connection.on('disconnected', () => {
+    console.log('MongoDB disconnected. Will attempt to reconnect...')
+  })
+  
+  mongoose.connection.on('reconnected', () => {
+    console.log('✓ MongoDB reconnected successfully')
+  })
 } else {
   console.log('⚠ Skipping MongoDB connection (using localhost or not configured)')
   console.log('  Set MONGODB_URI environment variable in Railway to connect to MongoDB Atlas')
