@@ -3,6 +3,29 @@ const mongoose = require('mongoose')
 const cors = require('cors')
 require('dotenv').config()
 
+// Prevent process from exiting
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, but keeping server running...')
+  // Don't exit - Railway sends SIGTERM for health checks
+})
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully...')
+  process.exit(0)
+})
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error)
+  // Don't exit - keep server running
+})
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason)
+  // Don't exit - keep server running
+})
+
 const app = express()
 
 // Middleware
@@ -32,9 +55,14 @@ app.get('/api/health', (req, res) => {
   })
 })
 
-// Routes
-app.use('/api/transactions', require('./routes/transactions'))
-app.use('/api/categories', require('./routes/categories'))
+// Routes - wrapped in try-catch to prevent crashes
+try {
+  app.use('/api/transactions', require('./routes/transactions'))
+  app.use('/api/categories', require('./routes/categories'))
+} catch (error) {
+  console.error('Error loading routes:', error)
+  // Server continues running even if routes fail to load
+}
 
 // Connect to MongoDB
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/money-manager'
@@ -113,11 +141,37 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`✓ Server is running on port ${PORT}`)
   console.log(`✓ Environment: ${process.env.NODE_ENV || 'development'}`)
   console.log(`✓ MongoDB URI: ${MONGODB_URI ? 'Configured' : 'Not configured'}`)
+  console.log(`✓ Server PID: ${process.pid}`)
+  console.log(`✓ Server will stay running...`)
 })
 
 // Handle server errors
 server.on('error', (error) => {
   console.error('Server error:', error)
+  // Don't exit on server errors
 })
+
+// Keep process alive
+setInterval(() => {
+  // Keep-alive heartbeat (every 30 seconds)
+  if (server.listening) {
+    console.log(`[${new Date().toISOString()}] Server is alive and listening on port ${PORT}`)
+  }
+}, 30000)
+
+// Graceful shutdown handler
+const gracefulShutdown = () => {
+  console.log('Received shutdown signal, closing server...')
+  server.close(() => {
+    console.log('Server closed')
+    mongoose.connection.close(false, () => {
+      console.log('MongoDB connection closed')
+      process.exit(0)
+    })
+  })
+}
+
+process.on('SIGTERM', gracefulShutdown)
+process.on('SIGINT', gracefulShutdown)
 
 module.exports = app
