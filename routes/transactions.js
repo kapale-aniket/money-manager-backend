@@ -6,6 +6,14 @@ const { startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear
 // Get all transactions with filters
 router.get('/', async (req, res) => {
   try {
+    // Check MongoDB connection
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ 
+        message: 'Database connection not available',
+        error: 'Please check MongoDB connection'
+      })
+    }
+
     const { category, division, startDate, endDate, viewType } = req.query
     
     let query = {}
@@ -63,13 +71,25 @@ router.get('/', async (req, res) => {
 
     res.json(transactions)
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    console.error('Error fetching transactions:', error)
+    res.status(500).json({ 
+      message: error.message || 'Internal server error',
+      error: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    })
   }
 })
 
 // Get summary (income, expense, balance)
 router.get('/summary', async (req, res) => {
   try {
+    // Check MongoDB connection
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ 
+        message: 'Database connection not available',
+        error: 'Please check MongoDB connection'
+      })
+    }
+
     const { category, division, startDate, endDate, viewType } = req.query
     
     let query = {}
@@ -136,18 +156,34 @@ router.get('/summary', async (req, res) => {
 
     res.json(summary)
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    console.error('Error fetching summary:', error)
+    res.status(500).json({ 
+      message: error.message || 'Internal server error',
+      error: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    })
   }
 })
 
 // Create a new transaction
 router.post('/', async (req, res) => {
   try {
+    // Check MongoDB connection
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ 
+        message: 'Database connection not available',
+        error: 'Please check MongoDB connection'
+      })
+    }
+
     const transaction = new Transaction(req.body)
     await transaction.save()
     res.status(201).json(transaction)
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    console.error('Error creating transaction:', error)
+    res.status(400).json({ 
+      message: error.message || 'Bad request',
+      error: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    })
   }
 })
 
