@@ -30,18 +30,46 @@ app.get('/', (req, res) => {
 // Connect to MongoDB
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/money-manager'
 
+// Log MongoDB URI status (without exposing password)
+if (MONGODB_URI && MONGODB_URI.includes('mongodb+srv://')) {
+  const uriParts = MONGODB_URI.split('@')
+  if (uriParts.length > 1) {
+    console.log('✓ MongoDB URI: Configured (Atlas)')
+    console.log(`  Host: ${uriParts[1].split('/')[0]}`)
+  } else {
+    console.log('⚠ MongoDB URI: Configured but format may be incorrect')
+  }
+} else if (MONGODB_URI.includes('localhost')) {
+  console.log('⚠ MongoDB URI: Using default localhost (MONGODB_URI not set in environment)')
+} else {
+  console.log('✓ MongoDB URI: Configured')
+}
+
 // Start server regardless of MongoDB connection status
 const PORT = process.env.PORT || 5000
 
+// MongoDB connection options
+const mongooseOptions = {
+  serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+  socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
+}
+
 // Connect to MongoDB (non-blocking)
-mongoose.connect(MONGODB_URI)
-  .then(() => {
-    console.log('✓ Connected to MongoDB')
-  })
-  .catch((error) => {
-    console.error('✗ MongoDB connection error:', error.message)
-    console.log('Server will continue without MongoDB connection')
-  })
+if (MONGODB_URI && !MONGODB_URI.includes('localhost')) {
+  mongoose.connect(MONGODB_URI, mongooseOptions)
+    .then(() => {
+      console.log('✓ Connected to MongoDB Atlas')
+    })
+    .catch((error) => {
+      console.error('✗ MongoDB connection error:', error.message)
+      console.error('  Connection string format:', MONGODB_URI.includes('mongodb+srv://') ? 'Correct (Atlas)' : 'Incorrect')
+      console.log('Server will continue without MongoDB connection')
+      console.log('Please check MONGODB_URI environment variable in Railway')
+    })
+} else {
+  console.log('⚠ Skipping MongoDB connection (using localhost or not configured)')
+  console.log('  Set MONGODB_URI environment variable in Railway to connect to MongoDB Atlas')
+}
 
 // Start server
 const server = app.listen(PORT, '0.0.0.0', () => {
