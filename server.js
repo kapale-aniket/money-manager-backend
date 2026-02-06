@@ -13,16 +13,24 @@ app.use(express.json())
 app.use('/api/transactions', require('./routes/transactions'))
 app.use('/api/categories', require('./routes/categories'))
 
-// Health check
+// Health check with MongoDB status
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Server is running' })
+  const mongoStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+  res.json({ 
+    status: 'OK', 
+    message: 'Server is running',
+    mongodb: mongoStatus,
+    timestamp: new Date().toISOString()
+  })
 })
 
 // Root route for Railway health check
 app.get('/', (req, res) => {
+  const mongoStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
   res.json({ 
     status: 'OK', 
     message: 'Money Manager API is running',
+    mongodb: mongoStatus,
     timestamp: new Date().toISOString()
   })
 })
